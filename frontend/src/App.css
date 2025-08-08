@@ -1,0 +1,19 @@
+/* frontend/src/App.css */
+body {
+	background-color: #282c34;
+	color: white;
+	font-family: sans-serif;
+}
+
+.App {
+	text-align: center;
+}
+
+.App-header {
+	padding: 20px;
+	border-bottom: 2px solid #61dafb;
+}
+
+main {
+	padding: 20px;
+}
