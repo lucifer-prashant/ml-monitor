@@ -1,22 +1,19 @@
 // frontend/src/App.js
-import "./App.css"
-import PerformanceChart from "./PerformanceChart.js" // <-- Import
-import FeatureDriftChart from "./FeatureDriftChart.js"
+import { BrowserRouter, Routes, Route } from "react-router-dom"
+import LandingPage from "./LandingPage"
+import UploadPage from "./UploadPage"
+import Dashboard from "./Dashboard"
 
 function App() {
-	const modelVersion = "cancer_model_v1.0" // Hard-coded for now
-
 	return (
-		<div className="App">
-			<header className="App-header">
-				<h1>ML-Monitor Dashboard</h1>
-				<h2>Tracking: {modelVersion}</h2>
-			</header>
-			<main>
-				<PerformanceChart modelVersion={modelVersion} /> {/* <-- Use it here */}
-				<FeatureDriftChart modelVersion={modelVersion} />
-			</main>
-		</div>
+		<BrowserRouter>
+			<Routes>
+				<Route path="/" element={<LandingPage />} />
+				<Route path="/upload" element={<UploadPage />} />
+				{/* The route for the dashboard is now dynamic */}
+				<Route path="/dashboard/:modelVersion" element={<Dashboard />} />
+			</Routes>
+		</BrowserRouter>
 	)
 }
 
