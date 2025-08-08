@@ -1,17 +1,18 @@
-# simulator/run_simulation.py (Updated for Multi-Model)
+# simulator/run_simulation.py (Corrected with Grace Period)
 
 import pandas as pd
 import requests
 import time
 import random
-import os       # NEW
-import argparse # NEW
+import os
+import argparse
+import datetime
 
-# --- Configuration ---
+# --- Configuration ---  <- THIS WAS THE MISSING PART
 API_URL = "http://127.0.0.1:8000/ingest"
 SEND_INTERVAL_SECONDS = 2
+# --- End of Configuration ---
 
-# The drift engine function remains the same for now
 def introduce_drift(data_row):
     drift_factor = 1.0 + (int(time.time() / 30) % 20) * 0.05
     data_row['mean radius'] *= (1 + drift_factor)
@@ -21,12 +22,11 @@ def introduce_drift(data_row):
         data_row['mean texture'] += noise
     return data_row
 
-# --- NEW: Main function to handle dynamic model loading ---
+
 def run_simulation(model_version_id: str):
     """
     Runs the simulation for a specific model version ID.
     """
-    # Dynamically construct the path to the reference data
     reference_data_path = os.path.join('assets', model_version_id, 'reference_data.csv')
 
     try:
@@ -34,39 +34,42 @@ def run_simulation(model_version_id: str):
         print(f"Reference data for '{model_version_id}' loaded successfully from '{reference_data_path}'.")
     except FileNotFoundError:
         print(f"Error: The reference data file for '{model_version_id}' was not found at '{reference_data_path}'.")
-        print("Please ensure you have uploaded this model via the UI or registered it correctly.")
         exit()
 
     feature_columns = df.columns.drop('target', errors='ignore')
     target_column = 'target'
-
+    
+    # --- GRACE PERIOD SETUP ---
+    start_time = datetime.datetime.now()
+    grace_period_seconds = 60
+    drift_engaged = False
     print(f"--- Starting Simulation for Model: {model_version_id} ---")
-    print("--- DRIFT ENGINE ENGAGED ---")
-    print(f"Sending a new data point every {SEND_INTERVAL_SECONDS} seconds.")
+    print(f"--- Running in GRACE PERIOD for {grace_period_seconds} seconds (no drift) ---")
     print("Press CTRL+C to stop.")
 
     while True:
         try:
+            # Check if grace period is over
+            if not drift_engaged and (datetime.datetime.now() - start_time).seconds > grace_period_seconds:
+                print("\n--- GRACE PERIOD OVER. DRIFT ENGINE ENGAGED. ---")
+                drift_engaged = True
+
             random_row = df.sample(n=1)
             features = random_row[feature_columns].to_dict('records')[0]
-            ground_truth = 0 # Default value
-            if target_column in random_row.columns:
-                ground_truth = int(random_row[target_column].iloc[0])
+            ground_truth = int(random_row[target_column].iloc[0]) if target_column in random_row.columns else 0
 
-            drifted_features = introduce_drift(features.copy())
+            # Only apply drift if engaged
+            if drift_engaged:
+                features = introduce_drift(features.copy())
 
-            # The payload now uses the dynamic model_version_id
             payload = {
                 "model_version_id": model_version_id,
-                "features": drifted_features,
+                "features": features, # Send original or drifted features
                 "ground_truth": ground_truth
             }
 
             response = requests.post(API_URL, json=payload)
             response.raise_for_status()
-
-            # Optional: uncomment to see data points being sent
-            # print(".", end="", flush=True)
 
             time.sleep(SEND_INTERVAL_SECONDS)
 
@@ -80,7 +83,6 @@ def run_simulation(model_version_id: str):
             print(f"\nAn unexpected error occurred: {e}")
             break
 
-# --- NEW: Script entry point with argument parsing ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run a data simulation for a specific ML model.")
     parser.add_argument("model_version_id", type=str, help="The unique ID of the model to simulate data for (e.g., 'cancer_model_v1.0').")
